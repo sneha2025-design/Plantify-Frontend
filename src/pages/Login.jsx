@@ -1,136 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
-import Input from '../components/Input';
-import Button from '../components/Button';
-import { Mail, Lock } from 'lucide-react';
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import AuthLayout from '../components/AuthLayout'
+import FormField from '../components/FormField'
+import ForgotPasswordModal from '../components/ForgotPasswordModal'
+import { loginUser, loginWithGoogleToken } from '../services/authService'
+import { signInWithGoogle } from '../services/googleAuth'
 
-export const Login = () => {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [loading, setLoading] = useState(false);
+export default function Login() {
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ identifier: '', password: '' })
+  const [rememberMe, setRememberMe] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [showForgotModal, setShowForgotModal] = useState(false)
 
-  // Retrieve default redirect path if coming from ProtectedRoute redirect
-  const from = location.state?.from?.pathname || '/dashboard';
+  function update(field, value) {
+    setForm((f) => ({ ...f, [field]: value }))
+  }
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-  } = useForm({
-    defaultValues: {
-      usernameOrEmail: '',
-      password: '',
-      rememberMe: false,
-    },
-  });
+  function validate() {
+    const e = {}
+    if (!form.identifier.trim()) e.identifier = 'Email or mobile number is required'
+    if (!form.password) e.password = 'Password is required'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
-  // Remember Me logic: load username/email if saved previously
-  useEffect(() => {
-    const savedLogin = localStorage.getItem('rememberedUser');
-    if (savedLogin) {
-      setValue('usernameOrEmail', savedLogin);
-      setValue('rememberMe', true);
-    }
-  }, [setValue]);
+  async function handleSubmit(evt) {
+    evt.preventDefault()
+    setServerError('')
+    if (!validate()) return
 
-  const onSubmit = async (data) => {
-    setLoading(true);
+    setLoading(true)
     try {
-      await login({
-        usernameOrEmail: data.usernameOrEmail,
-        password: data.password,
-      });
-
-      if (data.rememberMe) {
-        localStorage.setItem('rememberedUser', data.usernameOrEmail);
-      } else {
-        localStorage.removeItem('rememberedUser');
-      }
-
-      navigate(from, { replace: true });
+      await loginUser(form)
+      navigate('/products')
     } catch (err) {
-      // If error message tells user they are not verified, redirect them to verification page after 2 seconds
-      const message = err.response?.data?.message || '';
-      if (message.toLowerCase().includes('not verified')) {
-        setTimeout(() => {
-          navigate(`/verify-otp?email=${encodeURIComponent(data.usernameOrEmail)}`);
-        }, 1500);
-      }
+      setServerError(err.response?.data?.message || 'Invalid email/mobile number or password')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  async function handleGoogleLogin() {
+    setServerError('')
+    setGoogleLoading(true)
+    try {
+      const accessToken = await signInWithGoogle()
+      await loginWithGoogleToken(accessToken)
+      navigate('/products')
+    } catch (err) {
+      setServerError(err.response?.data?.message || err.message || 'Google sign-in failed')
+    } finally {
+      setGoogleLoading(false)
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2 text-left">
-        <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-dark-50">Welcome Back</h2>
-        <p className="text-sm text-slate-400 dark:text-dark-500">Sign in to your Plantify account.</p>
-      </div>
+    <AuthLayout bgImage="/images/bg-login.jpg">
+      <h2 className="card-title">Welcome Back!</h2>
+      <p className="card-subtitle">Login to your account and continue your green journey</p>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        <Input
-          label="Username or Email"
-          placeholder="name@example.com or username"
-          icon={Mail}
-          error={errors.usernameOrEmail?.message}
-          {...register('usernameOrEmail', {
-            required: 'Username or email is required',
-            minLength: { value: 3, message: 'Please enter a valid credential' },
-          })}
+      <form onSubmit={handleSubmit} noValidate>
+        <FormField
+          label="Email or Mobile Number"
+          icon="mail"
+          placeholder="Enter your email or mobile number"
+          value={form.identifier}
+          onChange={(e) => update('identifier', e.target.value)}
+          error={errors.identifier}
+        />
+        <FormField
+          label="Password"
+          icon="lock"
+          isPassword
+          placeholder="Enter your password"
+          value={form.password}
+          onChange={(e) => update('password', e.target.value)}
+          error={errors.password}
         />
 
-        <div className="space-y-1">
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            icon={Lock}
-            error={errors.password?.message}
-            {...register('password', {
-              required: 'Password is required',
-            })}
-          />
-          <div className="text-right">
-            <Link
-              to="/forgot-password"
-              className="text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors"
-            >
-              Forgot Password?
-            </Link>
-          </div>
-        </div>
-
-        {/* Remember Me */}
-        <div className="flex items-center space-x-2.5 text-left py-0.5">
-          <input
-            type="checkbox"
-            id="rememberMe"
-            className="h-4 w-4 rounded border-slate-350 text-primary-600 focus:ring-primary-500/20"
-            {...register('rememberMe')}
-          />
-          <label htmlFor="rememberMe" className="text-sm font-semibold text-slate-700 dark:text-dark-350 cursor-pointer select-none">
+        <div className="form-row-between">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
             Remember me
           </label>
+          <button type="button" className="link-accent link-as-button" onClick={() => setShowForgotModal(true)}>
+            Forgot Password?
+          </button>
         </div>
 
-        <Button type="submit" isLoading={loading} className="w-full mt-2">
-          Sign In
-        </Button>
+        {serverError && <p className="form-server-error">{serverError}</p>}
+
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? 'Logging in…' : 'Login'}
+        </button>
+
+        <div className="divider"><span>OR</span></div>
+
+        <button type="button" className="btn-google" onClick={handleGoogleLogin} disabled={googleLoading}>
+          <GoogleIcon /> {googleLoading ? 'Connecting…' : 'Login with Google'}
+        </button>
+
+        <p className="switch-text">
+          Don't have an account? <Link to="/register" className="link-accent">Register</Link>
+        </p>
       </form>
 
-      <div className="text-sm text-slate-500 dark:text-dark-500 text-center">
-        New to Plantify?{' '}
-        <Link to="/register" className="font-bold text-primary-600 hover:text-primary-700 transition-colors">
-          Create an Account
-        </Link>
-      </div>
-    </div>
-  );
-};
+      {showForgotModal && <ForgotPasswordModal onClose={() => setShowForgotModal(false)} />}
+    </AuthLayout>
+  )
+}
 
-export default Login;
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6 29.6 4 24 4c-7.4 0-13.8 4.2-17.1 10.3z" />
+      <path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.1-5.1l-6.5-5.5C29.6 35 26.9 36 24 36c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C9.1 39.8 15.9 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.5l6.5 5.5C41.5 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z" />
+    </svg>
+  )
+}

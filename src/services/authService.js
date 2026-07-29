@@ -1,64 +1,86 @@
-import api from './api';
+import api from './api'
 
-const authService = {
-  register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
-  },
+function persistSession(data) {
+  if (data.token) {
+    localStorage.setItem('plantify_token', data.token)
+    localStorage.setItem('plantify_user', JSON.stringify({
+      fullName: data.fullName,
+      email: data.email,
+      role: data.role,
+    }))
+  }
+}
 
-  verifyOtp: async (otpData) => {
-    const response = await api.post('/auth/verify-otp', otpData);
-    return response.data;
-  },
+export function getCurrentUser() {
+  try {
+    const raw = localStorage.getItem('plantify_user')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
 
-  resendOtp: async (resendData) => {
-    const response = await api.post('/auth/resend-otp', resendData);
-    return response.data;
-  },
+export function isAdmin() {
+  return getCurrentUser()?.role === 'ADMIN'
+}
 
-  login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    if (response.data.accessToken) {
-      localStorage.setItem('accessToken', response.data.accessToken);
-    }
-    return response.data;
-  },
+export async function loginUser({ identifier, password }) {
+  const { data } = await api.post('/auth/login', { identifier, password })
+  persistSession(data)
+  return data
+}
 
-  logout: async () => {
-    try {
-      await api.post('/auth/logout');
-    } finally {
-      localStorage.removeItem('accessToken');
-    }
-  },
+export async function registerUser({ fullName, email, mobileNumber, password, confirmPassword }) {
+  const { data } = await api.post('/auth/register', {
+    fullName,
+    email,
+    mobileNumber,
+    password,
+    confirmPassword,
+  })
+  return data
+}
 
-  logoutAll: async () => {
-    try {
-      await api.post('/auth/logout-all');
-    } finally {
-      localStorage.removeItem('accessToken');
-    }
-  },
+export async function loginWithGoogleToken(accessToken) {
+  const { data } = await api.post('/auth/google', { accessToken })
+  if (data.token) {
+    localStorage.setItem('plantify_token', data.token)
+  }
+  return data
+}
 
-  forgotPassword: async (forgotData) => {
-    const response = await api.post('/auth/forgot-password', forgotData);
-    return response.data;
-  },
+// --- Forgot password (OTP flow: request -> verify -> reset) ---
 
-  resetPassword: async (resetData) => {
-    const response = await api.post('/auth/reset-password', resetData);
-    return response.data;
-  },
+export async function requestOtp(email) {
+  const { data } = await api.post('/auth/forgot-password', { email })
+  return data
+}
 
-  changePassword: async (changePasswordData) => {
-    const response = await api.post('/auth/change-password', changePasswordData);
-    return response.data;
-  },
+export async function verifyOtp(email, otp) {
+  const { data } = await api.post('/auth/verify-otp', { email, otp })
+  return data // { message, resetToken }
+}
 
-  getCurrentUser: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
-};
+export async function resetPassword({ token, newPassword, confirmPassword }) {
+  const { data } = await api.post('/auth/reset-password', { token, newPassword, confirmPassword })
+  return data
+}
 
-export default authService;
+// --- Authenticated account actions ---
+
+export async function changePassword({ currentPassword, newPassword, confirmPassword }) {
+  const { data } = await api.put('/auth/change-password', {
+    currentPassword,
+    newPassword,
+    confirmPassword,
+  })
+  return data
+}
+
+export async function logoutUser() {
+  try {
+    await api.post('/auth/logout')
+  } finally {
+    localStorage.removeItem('plantify_token')
+  }
+}
