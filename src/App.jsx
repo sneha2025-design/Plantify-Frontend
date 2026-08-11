@@ -1,46 +1,86 @@
 import React from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-import router from './routes';
+import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
+import { WishlistProvider } from './context/WishlistContext';
+
+import { Navbar } from './components/Navbar';
+import { Footer } from './components/Footer';
+import { CartDrawer } from './components/CartDrawer';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
+
+import { Home } from './pages/Home';
+import { Shop } from './pages/Shop';
+import { CartPage } from './pages/CartPage';
+import { CheckoutPage } from './pages/CheckoutPage';
+import { OrderHistory } from './pages/OrderHistory';
+import { ProfilePage } from './pages/ProfilePage';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { WishlistPage } from './pages/WishlistPage';
+
+import { AdminLoginPage } from './pages/admin/AdminLoginPage';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { ManageProducts } from './pages/admin/ManageProducts';
+import { ManageUsers } from './pages/admin/ManageUsers';
+import { ManageOrders } from './pages/admin/ManageOrders';
+
+const AppContent = () => {
+  const location = useLocation();
+  const isAdminLogin = location.pathname === '/admin/login';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {!isAdminLogin && <Navbar />}
+      <CartDrawer />
+      
+      <main style={{ flex: 1 }}>
+        <Routes>
+          {/* Customer Public Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/shop" element={<Shop />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+          {/* Dedicated Admin Login Route (Public) */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+
+          {/* Customer Protected Routes */}
+          <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+          <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+
+          {/* Admin Protected Routes */}
+          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+          <Route path="/admin/products" element={<AdminRoute><ManageProducts /></AdminRoute>} />
+          <Route path="/admin/users" element={<AdminRoute><ManageUsers /></AdminRoute>} />
+          <Route path="/admin/orders" element={<AdminRoute><ManageOrders /></AdminRoute>} />
+        </Routes>
+      </main>
+
+      {!isAdminLogin && <Footer />}
+    </div>
+  );
+};
 
 export const App = () => {
   return (
     <ThemeProvider>
       <AuthProvider>
-        {/* React Hot Toast Notifications Container */}
-        <Toaster
-          position="top-right"
-          reverseOrder={false}
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#ffffff',
-              color: '#1e293b',
-              borderRadius: '12px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-              border: '1px solid #e2e8f0',
-              padding: '12px 18px',
-              fontFamily: '"Inter", sans-serif',
-              fontSize: '14px',
-            },
-            success: {
-              style: {
-                borderLeft: '4px solid #16a34a',
-              },
-            },
-            error: {
-              style: {
-                borderLeft: '4px solid #dc2626',
-              },
-            },
-          }}
-        />
-        <RouterProvider router={router} />
+        <CartProvider>
+          <WishlistProvider>
+            <Router>
+              <AppContent />
+            </Router>
+          </WishlistProvider>
+        </CartProvider>
       </AuthProvider>
     </ThemeProvider>
   );
 };
-
-export default App;
